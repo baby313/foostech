@@ -21,18 +21,40 @@
 2. Rocking European
 3. Walking European
 4. 斜线球
-类似刷球发力，适合regular或reverse等不swap后卫杆的防守方式
+上斜线球，类似刷球发力，适合regular等不swap后卫杆的防守方式
+下斜线球，没想好，Collignon有几次用，适合进攻reverse防守。
 5. 原地球 flicker
 原地旋转，最简单，基本不用练习。出脚时要注意自然一些，可以先大幅度rocking隐蔽射门想法，让对手以为要打远端，然后直接原地转杆。
-
 ##### Pull Shot
+1. 
 ##### 其他
 ##### Push Shot
 ##### Pull Kick
 ##### Push Kick
 ##### Sling Shot
-
+帅而不稳，打的最稳定的，曹兰笛，朱颜哲
+练习方法：熟能生巧，关键是用手和耳朵感受球撞击的节奏，而不是用眼睛去看
 #### 5人杆
+##### stick pass
+1. wall
+2. lane
+3. highlane
+4. bounce
+5. 静止和tiktak版本setup的选择
+优先静止版本，稳定，适配歪的球桌，但社交压力大，酒吧可以打tiktak，或者把setup练到最快。
+bounce和highlane需要一些初始速度，可以快速切换到tiktak。
+6. 开掌和转手腕发力的选择
+两个流派各有说辞，最近我先练习开掌。
+开掌重点：下压大臂，右搓手掌
+7. 主视线和余光分别盯哪里
+
+##### brush pass
+1. 上
+2. 下
+
+##### cheap pass
+找节奏感，而不是眼睛看
+
 ### 后卫
 #### 2人杆
 #### 1人杆
