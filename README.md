@@ -20,13 +20,16 @@
 防守方案：135防守法
 2. Rocking European
 3. Walking European
-4. 斜线球
-上斜线球，类似刷球发力，适合regular等不swap后卫杆的防守方式
-下斜线球，没想好，Collignon有几次用，适合进攻reverse防守。
+4. 斜刷球
+上斜刷球，类似刷球发力，适合regular等不swap后卫杆的防守方式
+下斜刷球，没想好，Collignon有几次用，适合进攻reverse防守。
 5. 原地球 flicker
 原地旋转，最简单，基本不用练习。出脚时要注意自然一些，可以先大幅度rocking隐蔽射门想法，让对手以为要打远端，然后直接原地转杆。
+6. 快速European
+小人在落下接触球的一瞬间出脚。拉侧比较自然，可以直接起脚。推侧不自然容易踢飞，要主要发力是两阶段的，所以原地tap正下方点后马上放松手腕再射门，1点2推射。
+如果发现速度慢，可以用Rocking骗。快速European适合结合斜刷球刷球。
+防守方案：在tap时候其实进攻方已经开始reading了，需要提前快速晃动防守。
 ##### Pull Shot
-1. 
 ##### 其他
 ##### Push Shot
 ##### Pull Kick
@@ -39,7 +42,9 @@
 1. wall
 2. lane
 3. highlane
+比较适合tiktak版本
 4. bounce
+比较适合tiktak版本
 5. 静止和tiktak版本setup的选择
 优先静止版本，稳定，适配歪的球桌，但社交压力大，酒吧可以打tiktak，或者把setup练到最快。
 bounce和highlane需要一些初始速度，可以快速切换到tiktak。
@@ -47,7 +52,7 @@ bounce和highlane需要一些初始速度，可以快速切换到tiktak。
 两个流派各有说辞，最近我先练习开掌。
 开掌重点：下压大臂，右搓手掌
 7. 主视线和余光分别盯哪里
-
+目标是，动作熟练后看对手5人杆防守站位
 ##### brush pass
 1. 上
 2. 下
