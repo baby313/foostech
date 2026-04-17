@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv11 ONNX Detection in Browser</title>
+    <!-- Load ONNX Runtime Web -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        canvas {
+            border: 1px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 100%;
+        }
+        #status {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>YOLO ONNX Object Detection</h1>
+    <div id="status">Waiting for image to load...</div>
+    
+    <!-- Original image (hidden) -->
+    <img id="image" src="a.jpg" style="display:none;" crossorigin="anonymous">
+    
+    <!-- Canvas for displaying image and bounding boxes -->
+    <canvas id="canvas" width="640" height="640"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const image = document.getElementById('image');
+        const status = document.getElementById('status');
+
+        // Target size for the model
+        const MODEL_SIZE = 640;
+
+        image.onload = async () => {
+            try {
+                // 1. Calculate letterbox dimensions
+                const scale = Math.min(MODEL_SIZE / image.width, MODEL_SIZE / image.height);
+                const newW = image.width * scale;
+                const newH = image.height * scale;
+                const padX = (MODEL_SIZE - newW) / 2;
+                const padY = (MODEL_SIZE - newH) / 2;
+
+                // 2. Draw letterboxed image on canvas
+                ctx.fillStyle = '#727272'; // YOLO default padding color (114, 114, 114)
+                ctx.fillRect(0, 0, MODEL_SIZE, MODEL_SIZE);
+                ctx.drawImage(image, padX, padY, newW, newH);
+
+                status.innerText = "Loading ONNX model...";
+                
+                // 3. Load ONNX model
+                // executionProviders: 'wasm' runs the model in WebAssembly (CPU)
+                const session = await ort.InferenceSession.create('best.onnx', { executionProviders: ['wasm'] });
+                
+                status.innerText = "Running inference...";
+                
+                // 4. Get image data from canvas
+                const imgData = ctx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
+                const pixels = imgData.data;
+                
+                // 5. Prepare input tensor [1, 3, 640, 640] in NCHW format
+                const input = new Float32Array(1 * 3 * MODEL_SIZE * MODEL_SIZE);
+                for (let i = 0; i < MODEL_SIZE * MODEL_SIZE; i++) {
+                    input[i] = pixels[i * 4] / 255.0;                             // R
+                    input[i + MODEL_SIZE * MODEL_SIZE] = pixels[i * 4 + 1] / 255.0;     // G
+                    input[i + 2 * MODEL_SIZE * MODEL_SIZE] = pixels[i * 4 + 2] / 255.0; // B
+                }
+                
+                const tensor = new ort.Tensor('float32', input, [1, 3, MODEL_SIZE, MODEL_SIZE]);
+                
+                // 6. Run inference
+                const results = await session.run({ images: tensor });
+                
+                // 7. Process outputs
+                // The output is a tensor of shape [1, 300, 6] (end-to-end detection)
+                const output = results['output0'].data;
+                
+                let found = 0;
+                let bestDetection = null;
+                // Output format for each detection: [x1, y1, x2, y2, score, class]
+                for (let i = 0; i < 300; i++) {
+                    const offset = i * 6;
+                    const score = output[offset + 4];
+                    
+                    if (score > 0.25 && (!bestDetection || score > bestDetection.score)) {
+                        bestDetection = {
+                            x1: output[offset],
+                            y1: output[offset + 1],
+                            x2: output[offset + 2],
+                            y2: output[offset + 3],
+                            score: score,
+                            classId: output[offset + 5]
+                        };
+                    }
+                }
+                
+                if (bestDetection) {
+                    found = 1;
+                    const { x1, y1, x2, y2, score } = bestDetection;
+                    
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00FF00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    
+                    // Draw label background
+                    const label = `sports ball: ${(score * 100).toFixed(1)}%`;
+                    ctx.font = '16px Arial';
+                    const textWidth = ctx.measureText(label).width;
+                    ctx.fillStyle = '#00FF00';
+                    ctx.fillRect(x1, y1 - 20, textWidth + 10, 20);
+                    
+                    // Draw label text
+                    ctx.fillStyle = '#000000';
+                    ctx.fillText(label, x1 + 5, y1 - 5);
+                }
+                
+                status.innerText = `Detection Complete! Found ${found} object(s).`;
+                status.style.color = 'green';
+                
+            } catch (e) {
+                status.innerText = `Error: ${e.message}`;
+                status.className = 'error';
+                console.error(e);
+            }
+        };
+
+        image.onerror = () => {
+            status.innerText = "Error: Could not load 'a.jpg'. Ensure it exists in the same directory.";
+            status.className = 'error';
+        };
+    </script>
+</body>
+</html>

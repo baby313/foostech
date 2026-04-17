@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLOv11 ONNX Live Detection</title>
+    <!-- Load ONNX Runtime Web -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            position: relative;
+            display: inline-block;
+            margin: 0 auto;
+        }
+        video {
+            display: none; /* Hide the actual video element */
+        }
+        canvas {
+            border: 1px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            background-color: #000;
+            max-width: 100%;
+            height: auto;
+            /* Keep logical size 640x640, scale visually using CSS */
+        }
+        #status {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>YOLO Live Object Detection</h1>
+    <div id="status">Loading ONNX model...</div>
+    
+    <div class="controls">
+        <button id="startBtn" disabled>Start Camera</button>
+        <button id="stopBtn" disabled>Stop Camera</button>
+    </div>
+
+    <div class="container">
+        <!-- Hidden video element for camera stream -->
+        <video id="video" autoplay playsinline></video>
+        <!-- Canvas for displaying video frames and bounding boxes -->
+        <canvas id="canvas" width="640" height="640"></canvas>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        const MODEL_SIZE = 640;
+        let session = null;
+        let isDetecting = false;
+        let animationId = null;
+
+        // Initialize model
+        async function initModel() {
+            try {
+                // Set WASM threads for better performance
+                ort.env.wasm.numThreads = 4;
+                
+                status.innerText = "Loading ONNX model... (This may take a moment)";
+                session = await ort.InferenceSession.create('best.onnx', { executionProviders: ['wasm'] });
+                
+                status.innerText = "Model loaded successfully. Ready to start camera.";
+                status.style.color = 'green';
+                startBtn.disabled = false;
+            } catch (e) {
+                status.innerText = `Error loading model: ${e.message}`;
+                status.className = 'error';
+                console.error(e);
+            }
+        }
+
+        // Start camera
+        async function startCamera() {
+            try {
+                // Try to get back camera explicitly
+                let constraints = {
+                    video: { 
+                        facingMode: { exact: "environment" },
+                        width: { ideal: 640 },
+                        height: { ideal: 640 }
+                    }
+                };
+
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (err) {
+                    // Fallback if exact environment camera is not available (e.g., on some desktop browsers)
+                    console.warn("Back camera not explicitly found, falling back to default camera");
+                    constraints.video.facingMode = "environment"; // less strict constraint
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                }
+
+                video.srcObject = stream;
+                
+                // Wait for video to be ready
+                video.onloadedmetadata = () => {
+                    video.play();
+                    
+                    // Adjust visual canvas size to fit mobile screens better
+                    const isPortrait = window.innerHeight > window.innerWidth;
+                    if (isPortrait) {
+                        canvas.style.width = '100%';
+                        canvas.style.height = 'auto';
+                    } else {
+                        canvas.style.height = '80vh';
+                        canvas.style.width = 'auto';
+                    }
+                    
+                    isDetecting = true;
+                    startBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    status.innerText = "Running live detection...";
+                    detectFrame(); // Start detection loop
+                };
+            } catch (e) {
+                status.innerText = `Camera error: ${e.message}. Make sure you have granted permissions and are using HTTPS/localhost.`;
+                status.className = 'error';
+                console.error(e);
+            }
+        }
+
+        // Stop camera
+        function stopCamera() {
+            isDetecting = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            
+            const stream = video.srcObject;
+            if (stream) {
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+            }
+            video.srcObject = null;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            status.innerText = "Camera stopped. Ready to start.";
+        }
+
+        // Detection loop
+        async function detectFrame() {
+            if (!isDetecting || !session || video.paused || video.ended) return;
+
+            try {
+                // 1. Calculate letterbox dimensions based on current video frame
+                const scale = Math.min(MODEL_SIZE / video.videoWidth, MODEL_SIZE / video.videoHeight);
+                const newW = video.videoWidth * scale;
+                const newH = video.videoHeight * scale;
+                const padX = (MODEL_SIZE - newW) / 2;
+                const padY = (MODEL_SIZE - newH) / 2;
+
+                // 2. Draw video frame on canvas with letterbox
+                ctx.fillStyle = '#727272'; // Padding color
+                ctx.fillRect(0, 0, MODEL_SIZE, MODEL_SIZE);
+                ctx.drawImage(video, padX, padY, newW, newH);
+
+                // 3. Get image data
+                const imgData = ctx.getImageData(0, 0, MODEL_SIZE, MODEL_SIZE);
+                const pixels = imgData.data;
+                
+                // 4. Prepare input tensor
+                const input = new Float32Array(1 * 3 * MODEL_SIZE * MODEL_SIZE);
+                for (let i = 0; i < MODEL_SIZE * MODEL_SIZE; i++) {
+                    input[i] = pixels[i * 4] / 255.0;                             // R
+                    input[i + MODEL_SIZE * MODEL_SIZE] = pixels[i * 4 + 1] / 255.0;     // G
+                    input[i + 2 * MODEL_SIZE * MODEL_SIZE] = pixels[i * 4 + 2] / 255.0; // B
+                }
+                
+                const tensor = new ort.Tensor('float32', input, [1, 3, MODEL_SIZE, MODEL_SIZE]);
+                
+                // 5. Run inference
+                const results = await session.run({ images: tensor });
+                const output = results['output0'].data;
+                
+                // 6. Process outputs (max_det=1 logic)
+                let bestDetection = null;
+                for (let i = 0; i < 300; i++) {
+                    const offset = i * 6;
+                    const score = output[offset + 4];
+                    
+                    if (score > 0.25 && (!bestDetection || score > bestDetection.score)) {
+                        bestDetection = {
+                            x1: output[offset],
+                            y1: output[offset + 1],
+                            x2: output[offset + 2],
+                            y2: output[offset + 3],
+                            score: score,
+                            classId: output[offset + 5]
+                        };
+                    }
+                }
+                
+                // 7. Draw best detection
+                if (bestDetection) {
+                    const { x1, y1, x2, y2, score } = bestDetection;
+                    
+                    // Box
+                    ctx.strokeStyle = '#00FF00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    
+                    // Label
+                    const label = `sports ball: ${(score * 100).toFixed(1)}%`;
+                    ctx.font = '16px Arial';
+                    const textWidth = ctx.measureText(label).width;
+                    
+                    ctx.fillStyle = '#00FF00';
+                    ctx.fillRect(x1, y1 - 20, textWidth + 10, 20);
+                    
+                    ctx.fillStyle = '#000000';
+                    ctx.fillText(label, x1 + 5, y1 - 5);
+                }
+                
+            } catch (e) {
+                console.error("Detection error:", e);
+            }
+
+            // Request next frame
+            if (isDetecting) {
+                // Using requestAnimationFrame for smooth rendering, 
+                // but you might want to add a small delay if it's too heavy on CPU
+                animationId = requestAnimationFrame(detectFrame);
+            }
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+
+        // Initialize on load
+        window.onload = initModel;
+
+    </script>
+</body>
+</html>
