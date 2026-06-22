@@ -1,0 +1,5 @@
+.DS_Store
+.trae/
+.venv/
+__pycache__/
+*.pyc
